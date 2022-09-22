@@ -3,15 +3,22 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 fn process_lines(reader: impl BufRead) -> Result<u32> {
-    let mut prev_depth: u32 = 0;
+    let mut depth_window: [u32; 3] = [0, 0, 0];
     let mut depth_count: u32 = 0;
     for line_result in reader.lines() {
         let line = line_result?;
         let depth: u32 = line.parse()?;
-        if 0 < prev_depth && depth > prev_depth {
+
+        let new_window = [depth_window[1], depth_window[2], depth];
+
+        let prev_sum: u32 = depth_window.iter().sum();
+        let new_sum: u32 = new_window.iter().sum();
+        let is_window_saturated = depth_window.into_iter().all(|d| 0 < d);
+        if is_window_saturated && new_sum > prev_sum {
             depth_count += 1;
         }
-        prev_depth = depth;
+
+        depth_window = new_window;
     }
     return Ok(depth_count);
 }
