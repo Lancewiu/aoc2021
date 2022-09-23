@@ -20,7 +20,10 @@ fn main() {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
             Ok(ship) => {
-                println!("Depth multiple: {}", ship.get_depth() * ship.get_forward());
+                println!(
+                    "Depth multiple: {}",
+                    ship.get_depth() * (ship.get_forward() as u64)
+                );
             }
         },
         Err(err) => {

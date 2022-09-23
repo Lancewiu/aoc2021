@@ -48,7 +48,7 @@ impl std::error::Error for CommandParseError {}
 
 pub struct Command {
     command: CommandType,
-    distance: u64,
+    distance: u32,
 }
 
 impl std::str::FromStr for Command {
@@ -64,14 +64,15 @@ impl std::str::FromStr for Command {
         let distance = tokens
             .next()
             .ok_or(CommandParseError(format!("missing second command token")))?
-            .parse::<u64>()
+            .parse::<u32>()
             .map_err(|parse_int_err| CommandParseError(parse_int_err.to_string()))?;
         Ok(Command { command, distance })
     }
 }
 
 pub struct Pilot {
-    forward: u64,
+    forward: u32,
+    aim: i32,
     depth: u64,
 }
 
@@ -79,6 +80,7 @@ impl Pilot {
     pub fn new() -> Self {
         Pilot {
             forward: 0,
+            aim: 0,
             depth: 0,
         }
     }
@@ -86,18 +88,24 @@ impl Pilot {
     pub fn process(&mut self, cmd: &Command) {
         match cmd.command {
             CommandType::Forward => {
-                self.forward += cmd.distance;
+                self.forward += cmd.distance as u32;
+                let depth_delta = self.aim * (cmd.distance as i32);
+                self.depth = if depth_delta.is_negative() {
+                    self.depth.saturating_sub(depth_delta.abs() as u64)
+                } else {
+                    self.depth + (depth_delta as u64)
+                };
             }
             CommandType::Down => {
-                self.depth += cmd.distance;
+                self.aim += cmd.distance as i32;
             }
             CommandType::Up => {
-                self.depth = self.depth.saturating_sub(cmd.distance);
+                self.aim -= cmd.distance as i32;
             }
         }
     }
 
-    pub fn get_forward(&self) -> u64 {
+    pub fn get_forward(&self) -> u32 {
         self.forward
     }
 
