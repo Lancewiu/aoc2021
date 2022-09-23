@@ -13,27 +13,53 @@ fn big_endian_bool_slice_to_num(array: &[bool]) -> u32 {
 
 fn process_lines(reader: impl BufRead) -> Result<u64> {
     // big endian count
-    let mut one_count = [0u32; 12];
-    let mut num_lines = 0u32;
+    let _one_count = [0u32; 12];
+    let mut numbers: Vec<[bool; 12]> = Vec::new();
     for line_result in reader.lines() {
         let line = line_result?;
+        let mut num = [false; 12];
         for (i, c) in line.chars().enumerate() {
-            if '1' == c {
-                one_count[i] += 1;
-            }
+            num[i] = '1' == c;
         }
-        num_lines += 1;
+        numbers.push(num);
     }
-    let mut majority = [false; 12];
-    let mut minority = [false; 12];
-    for (i, num_ones) in one_count.into_iter().enumerate() {
-        let common_bit = num_lines - num_ones < num_ones;
-        majority[i] = common_bit;
-        minority[i] = !common_bit;
+
+    let mut majority_set = numbers.clone();
+    let mut minority_set = numbers.clone();
+    for i in 0..12 {
+        if 1 < majority_set.len() {
+            let mut count = 0u32;
+            for bits in majority_set.iter() {
+                count += bits[i] as u32;
+            }
+            let major_bit = (majority_set.len() as u32) - count <= count;
+            majority_set = majority_set
+                .into_iter()
+                .filter(|bits| bits[i] == major_bit)
+                .collect();
+        }
+
+        if 1 < minority_set.len() {
+            let mut count = 0u32;
+            for bits in minority_set.iter() {
+                count += bits[i] as u32;
+            }
+            let minor_bit = !((minority_set.len() as u32) - count <= count);
+            minority_set = minority_set
+                .into_iter()
+                .filter(|bits| bits[i] == minor_bit)
+                .collect();
+        }
     }
-    let gamma_rate = big_endian_bool_slice_to_num(&majority);
-    let epsilon_rate = big_endian_bool_slice_to_num(&minority);
-    Ok((gamma_rate as u64) * (epsilon_rate as u64))
+    assert!(
+        1 == majority_set.len() && 1 == minority_set.len(),
+        "majority set length: {}, minority set length: {}",
+        majority_set.len(),
+        minority_set.len()
+    );
+    let oxygen_rating = big_endian_bool_slice_to_num(&majority_set[0]);
+    let co2_rating = big_endian_bool_slice_to_num(&minority_set[0]);
+    Ok((oxygen_rating as u64) * (co2_rating as u64))
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -43,8 +69,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(power) => {
-                println!("power consumption: {}", power);
+            Ok(life_support) => {
+                println!("life support rating: {}", life_support);
             }
         },
         Err(err) => {
