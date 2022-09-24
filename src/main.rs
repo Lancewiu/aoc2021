@@ -24,7 +24,14 @@ fn process_lines(mut reader: impl BufRead) -> anyhow::Result<usize> {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(i, count)| (count as usize) * (cmp::max(i, pos) - cmp::min(i, pos)))
+                .map(|(i, count)| {
+                    // gas(n) = summa [i = 0 -> n]{n - i}
+                    //        = summa [i = 0 -> n]{i}
+                    //        = n*(n+1)/2
+                    let distance = cmp::max(i, pos) - cmp::min(i, pos);
+                    let individual_use = distance * (distance + 1) / 2;
+                    (count as usize) * individual_use
+                })
                 .sum()
         })
         .min()
