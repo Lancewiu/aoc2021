@@ -1,7 +1,9 @@
-use std::cmp;
+use std::boxed;
 use std::error;
 use std::fmt;
+use std::iter;
 use std::str;
+use std::cmp;
 
 #[derive(Debug)]
 pub struct ParsePointError(String);
@@ -14,7 +16,7 @@ impl fmt::Display for ParsePointError {
 
 impl error::Error for ParsePointError {}
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Clone, Debug)]
 pub struct Point {
     pub x: u32,
     pub y: u32,
@@ -27,7 +29,7 @@ impl str::FromStr for Point {
         let mut tokens = s.split(',');
         let x = tokens
             .next()
-            .ok_or(ParsePointError(format!("missing x in \"x,y\"")))
+            .ok_or_else(|| ParsePointError("missing x in \"x,y\"".to_string()))
             .and_then(|x_str| {
                 x_str.trim().parse().map_err(|parse_err| {
                     ParsePointError(format!("failed to parse x.\n  {}", parse_err))
@@ -35,13 +37,51 @@ impl str::FromStr for Point {
             })?;
         let y = tokens
             .next()
-            .ok_or(ParsePointError(format!("missing y in \"x,y\"")))
+            .ok_or_else(|| ParsePointError("missing y in \"x,y\"".to_string()))
             .and_then(|y_str| {
                 y_str.trim().parse().map_err(|parse_err| {
                     ParsePointError(format!("failed to parse y.\n  {}", parse_err))
                 })
             })?;
         Ok(Point { x, y })
+    }
+}
+
+pub struct Trace {
+    cursor: Point,
+    end: Point,
+    increment_call: boxed::Box<dyn Fn(&mut Point)>,
+    is_done: bool,
+}
+
+impl iter::Iterator for Trace {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        eprintln!("cursor: {:?}, end: {:?}, is_done: {}", self.cursor, self.end, self.is_done);
+        if self.is_done {
+            return None;
+        }
+
+        let temp = self.cursor.clone();
+
+        if self.end == self.cursor {
+            self.is_done = true;
+        } else {
+            (self.increment_call)(&mut self.cursor);
+        }
+        Some(temp)
+    }
+}
+
+impl Trace {
+    fn new(start: Point, end: Point, increment_call: boxed::Box<dyn Fn(&mut Point)>) -> Self {
+        Self {
+            cursor: start,
+            end,
+            increment_call,
+            is_done: false,
+        }
     }
 }
 
@@ -68,7 +108,7 @@ impl str::FromStr for Line {
         let mut tokens = s.split_whitespace();
         let from = tokens
             .next()
-            .ok_or(ParseLineError(format!("could not find \"from\" point.")))
+            .ok_or_else(|| ParseLineError("could not find \"from\" point.".to_string()))
             .and_then(|from_str| {
                 from_str.parse().map_err(|parse_err| {
                     ParseLineError(format!("could not parse \"from\" point.\n  {}", parse_err))
@@ -77,7 +117,7 @@ impl str::FromStr for Line {
         tokens.next(); // -> symbol which is ignored
         let to = tokens
             .next()
-            .ok_or(ParseLineError(format!("could not find \"to\" point.")))
+            .ok_or_else(|| ParseLineError("could not find \"to\" point.".to_string()))
             .and_then(|to_str| {
                 to_str.parse().map_err(|parse_err| {
                     ParseLineError(format!("could not parse \"to\" point.\n  {}", parse_err))
@@ -88,35 +128,43 @@ impl str::FromStr for Line {
 }
 
 impl Line {
-    pub fn is_diagonal(&self) -> bool {
-        self.from.x != self.to.x && self.from.y != self.to.y
-    }
-
-    pub fn trace(&self) -> Vec<Point> {
-        if self.is_diagonal() {
-            unimplemented!();
-        }
-        let is_vertical = self.from.x == self.to.x;
-        let ((a, b), pivot_value) = if is_vertical {
-            ((self.from.y, self.to.y), self.from.x)
+    pub fn trace(&self) -> Trace {
+        let shift_by_x = match self.from.x.cmp(&self.to.x) {
+            cmp::Ordering::Equal => boxed::Box::new(|x: &mut u32| {}),
+            cmp::Ordering::Greater => boxed::Box::new(|x: &mut u32| { *x -= 1; }),
+            cmp::Ordering::Less => boxed::Box::new(|x: &mut u32| { *x += 1; }),
+        };
+        let shift_by_y = if self.from.y < self.to.y {
+            |y: &mut u32| {
+                *y += 1;
+            }
         } else {
-            ((self.from.x, self.to.x), self.from.y)
+            |y: &mut u32| {
+                *y -= 1;
+            }
         };
 
-        (cmp::min(a, b)..=cmp::max(a, b))
-            .map(|value| {
-                if is_vertical {
-                    Point {
-                        x: pivot_value,
-                        y: value,
-                    }
-                } else {
-                    Point {
-                        x: value,
-                        y: pivot_value,
-                    }
-                }
-            })
-            .collect()
+        if self.from.x == self.to.x {
+            Trace::new(
+                self.from.clone(),
+                self.to.clone(),
+                boxed::Box::new(move |p: &mut Point| shift_by_y(&mut p.x)),
+            )
+        } else if self.from.y == self.to.y {
+            Trace::new(
+                self.from.clone(),
+                self.to.clone(),
+                boxed::Box::new(move |p: &mut Point| shift_by_x(&mut p.y)),
+            )
+        } else {
+            Trace::new(
+                self.from.clone(),
+                self.to.clone(),
+                boxed::Box::new(move |p: &mut Point| {
+                    shift_by_x(&mut p.x);
+                    shift_by_y(&mut p.y);
+                }),
+            )
+        }
     }
 }

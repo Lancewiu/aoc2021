@@ -23,7 +23,7 @@ impl Canvas {
     }
 
     pub fn count_line(&mut self, line: &geometry::Line) {
-        line.trace().into_iter().for_each(|p| self.count_point(p));
+        line.trace().for_each(|p| self.count_point(p));
     }
 
     pub fn iter(&self) -> hash_map::Iter<'_, geometry::Point, u32> {

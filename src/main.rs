@@ -11,9 +11,7 @@ fn process_lines(reader: impl BufRead) -> Result<u64> {
     for line_res in reader.lines() {
         let line_str = line_res?;
         let line: geometry::Line = line_str.parse()?;
-        if !line.is_diagonal() {
-            board.count_line(&line);
-        }
+        board.count_line(&line);
     }
     Ok(board.iter().filter(|(_, counts)| 1 < **counts).count() as u64)
 }
