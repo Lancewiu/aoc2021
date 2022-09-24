@@ -1,65 +1,49 @@
+mod bingo;
+mod draw;
+
 use anyhow::Result;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::str;
 
-fn big_endian_bool_slice_to_num(array: &[bool]) -> u32 {
-    array
-        .into_iter()
-        .rev()
-        .enumerate()
-        .map(|(i_place, bit_value)| (*bit_value as u32) << i_place)
-        .sum()
+fn play_bingo(draws: &[u32], boards: &mut [bingo::Board]) -> u64 {
+    for v in draws.iter().copied() {
+        boards.iter_mut().for_each(|b| b.mark(v));
+        if let Some(winner) = boards.iter().find(|b| b.has_won()) {
+            return (winner.score() as u64) * (v as u64);
+        }
+    }
+    panic!("No winner!");
 }
 
-fn process_lines(reader: impl BufRead) -> Result<u64> {
-    // big endian count
-    let _one_count = [0u32; 12];
-    let mut numbers: Vec<[bool; 12]> = Vec::new();
-    for line_result in reader.lines() {
-        let line = line_result?;
-        let mut num = [false; 12];
-        for (i, c) in line.chars().enumerate() {
-            num[i] = '1' == c;
-        }
-        numbers.push(num);
-    }
+fn process_lines(reader: impl BufRead) -> Result<(Vec<u32>, Vec<bingo::Board>)> {
+    let mut lines_iter = reader.lines();
+    let draw_str = lines_iter.next().ok_or(draw::ParseDrawError::from(
+        "could not find draw buffer in file.",
+    ))??;
 
-    let mut majority_set = numbers.clone();
-    let mut minority_set = numbers.clone();
-    for i in 0..12 {
-        if 1 < majority_set.len() {
-            let mut count = 0u32;
-            for bits in majority_set.iter() {
-                count += bits[i] as u32;
-            }
-            let major_bit = (majority_set.len() as u32) - count <= count;
-            majority_set = majority_set
-                .into_iter()
-                .filter(|bits| bits[i] == major_bit)
-                .collect();
-        }
+    let draw_buffer: Vec<u32> = draw_str
+        .split(',')
+        .map(|token| token.parse::<u32>())
+        .collect::<Result<Vec<u32>, _>>()?;
 
-        if 1 < minority_set.len() {
-            let mut count = 0u32;
-            for bits in minority_set.iter() {
-                count += bits[i] as u32;
+    let mut boards: Vec<bingo::Board> = Vec::new();
+    let mut board_buffer: Vec<u32> = Vec::new();
+    lines_iter.next(); // ignore first empty line
+    for lines_res in lines_iter {
+        let line = lines_res?;
+        if line.is_empty() {
+            boards.push(bingo::Board::try_from(&board_buffer[..])?);
+            board_buffer.clear();
+        } else {
+            for value in line.split_whitespace() {
+                board_buffer.push(value.parse()?);
             }
-            let minor_bit = !((minority_set.len() as u32) - count <= count);
-            minority_set = minority_set
-                .into_iter()
-                .filter(|bits| bits[i] == minor_bit)
-                .collect();
         }
     }
-    assert!(
-        1 == majority_set.len() && 1 == minority_set.len(),
-        "majority set length: {}, minority set length: {}",
-        majority_set.len(),
-        minority_set.len()
-    );
-    let oxygen_rating = big_endian_bool_slice_to_num(&majority_set[0]);
-    let co2_rating = big_endian_bool_slice_to_num(&minority_set[0]);
-    Ok((oxygen_rating as u64) * (co2_rating as u64))
+    boards.push(bingo::Board::try_from(&board_buffer[..])?);
+
+    Ok((draw_buffer, boards))
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -69,8 +53,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(life_support) => {
-                println!("life support rating: {}", life_support);
+            Ok((draws, mut boards)) => {
+                println!("Final score: {}", play_bingo(&draws[..], &mut boards[..]));
             }
         },
         Err(err) => {
