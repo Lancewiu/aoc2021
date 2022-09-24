@@ -1,3 +1,4 @@
+use std::cmp;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
@@ -5,25 +6,29 @@ use std::str;
 fn process_lines(mut reader: impl BufRead) -> anyhow::Result<usize> {
     let mut line = String::new();
     reader.read_to_string(&mut line)?;
-    let mut histogram = [0usize; 9];
     let initial_state = line
         .trim()
         .split(',')
-        .map(|token| token.trim().parse::<usize>())
-        .collect::<Result<Vec<usize>, _>>()?;
+        .map(|token| token.trim().parse::<u32>())
+        .collect::<Result<Vec<u32>, _>>()?;
+    let pos_offset = *initial_state.iter().min().unwrap();
+    let pos_max = ((*initial_state.iter().max().unwrap()) - pos_offset) as usize;
+    let mut histogram = vec![0u32; pos_max + 1];
     initial_state.into_iter().for_each(|i| {
-        histogram[i] += 1;
+        histogram[(i - pos_offset) as usize] += 1;
     });
 
-    for _ in 0..256 {
-        let num_reset_fish = histogram[0];
-        for i in 0usize..8 {
-            histogram[i] = histogram[i + 1];
-        }
-        histogram[6] += num_reset_fish;
-        histogram[8] = num_reset_fish;
-    }
-    Ok(histogram.into_iter().sum())
+    (0..=pos_max)
+        .map(|pos| {
+            histogram
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, count)| (count as usize) * (cmp::max(i, pos) - cmp::min(i, pos)))
+                .sum()
+        })
+        .min()
+        .ok_or_else(|| unreachable!())
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -33,8 +38,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(num_fish) => {
-                println!("# fish: {}", num_fish);
+            Ok(gas_use) => {
+                println!("min gas use: {}", gas_use);
             }
         },
         Err(err) => {
