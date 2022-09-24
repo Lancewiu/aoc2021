@@ -1,9 +1,9 @@
-use std::boxed;
+
+use std::cmp;
 use std::error;
 use std::fmt;
 use std::iter;
 use std::str;
-use std::cmp;
 
 #[derive(Debug)]
 pub struct ParsePointError(String);
@@ -50,7 +50,6 @@ impl str::FromStr for Point {
 pub struct Trace {
     cursor: Point,
     end: Point,
-    increment_call: boxed::Box<dyn Fn(&mut Point)>,
     is_done: bool,
 }
 
@@ -58,7 +57,6 @@ impl iter::Iterator for Trace {
     type Item = Point;
 
     fn next(&mut self) -> Option<Self::Item> {
-        eprintln!("cursor: {:?}, end: {:?}, is_done: {}", self.cursor, self.end, self.is_done);
         if self.is_done {
             return None;
         }
@@ -68,18 +66,35 @@ impl iter::Iterator for Trace {
         if self.end == self.cursor {
             self.is_done = true;
         } else {
-            (self.increment_call)(&mut self.cursor);
+            match self.cursor.x.cmp(&self.end.x) {
+                cmp::Ordering::Equal => {}
+                cmp::Ordering::Greater => {
+                    self.cursor.x -= 1;
+                }
+                cmp::Ordering::Less => {
+                    self.cursor.x += 1;
+                }
+            }
+
+            match self.cursor.y.cmp(&self.end.y) {
+                cmp::Ordering::Equal => {}
+                cmp::Ordering::Greater => {
+                    self.cursor.y -= 1;
+                }
+                cmp::Ordering::Less => {
+                    self.cursor.y += 1;
+                }
+            }
         }
         Some(temp)
     }
 }
 
 impl Trace {
-    fn new(start: Point, end: Point, increment_call: boxed::Box<dyn Fn(&mut Point)>) -> Self {
+    fn new(start: Point, end: Point) -> Self {
         Self {
             cursor: start,
             end,
-            increment_call,
             is_done: false,
         }
     }
@@ -129,42 +144,6 @@ impl str::FromStr for Line {
 
 impl Line {
     pub fn trace(&self) -> Trace {
-        let shift_by_x = match self.from.x.cmp(&self.to.x) {
-            cmp::Ordering::Equal => boxed::Box::new(|x: &mut u32| {}),
-            cmp::Ordering::Greater => boxed::Box::new(|x: &mut u32| { *x -= 1; }),
-            cmp::Ordering::Less => boxed::Box::new(|x: &mut u32| { *x += 1; }),
-        };
-        let shift_by_y = if self.from.y < self.to.y {
-            |y: &mut u32| {
-                *y += 1;
-            }
-        } else {
-            |y: &mut u32| {
-                *y -= 1;
-            }
-        };
-
-        if self.from.x == self.to.x {
-            Trace::new(
-                self.from.clone(),
-                self.to.clone(),
-                boxed::Box::new(move |p: &mut Point| shift_by_y(&mut p.x)),
-            )
-        } else if self.from.y == self.to.y {
-            Trace::new(
-                self.from.clone(),
-                self.to.clone(),
-                boxed::Box::new(move |p: &mut Point| shift_by_x(&mut p.y)),
-            )
-        } else {
-            Trace::new(
-                self.from.clone(),
-                self.to.clone(),
-                boxed::Box::new(move |p: &mut Point| {
-                    shift_by_x(&mut p.x);
-                    shift_by_y(&mut p.y);
-                }),
-            )
-        }
+        Trace::new(self.from.clone(), self.to.clone())
     }
 }
