@@ -6,14 +6,18 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-fn play_bingo(draws: &[u32], boards: &mut [bingo::Board]) -> u64 {
+fn play_bingo(draws: &[u32], mut boards: Vec<bingo::Board>) -> u64 {
     for v in draws.iter().copied() {
         boards.iter_mut().for_each(|b| b.mark(v));
-        if let Some(winner) = boards.iter().find(|b| b.has_won()) {
-            return (winner.score() as u64) * (v as u64);
+        if 1 == boards.len() {
+            if boards[0].has_won() {
+                return (boards[0].score() as u64) * (v as u64);
+            }
+        } else {
+            boards = boards.into_iter().filter(|b| !b.has_won()).collect();
         }
     }
-    panic!("No winner!");
+    unreachable!();
 }
 
 fn process_lines(reader: impl BufRead) -> Result<(Vec<u32>, Vec<bingo::Board>)> {
@@ -41,6 +45,7 @@ fn process_lines(reader: impl BufRead) -> Result<(Vec<u32>, Vec<bingo::Board>)> 
             }
         }
     }
+    //the last board line is not delimited by an empty space.
     boards.push(bingo::Board::try_from(&board_buffer[..])?);
 
     Ok((draw_buffer, boards))
@@ -53,8 +58,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok((draws, mut boards)) => {
-                println!("Final score: {}", play_bingo(&draws[..], &mut boards[..]));
+            Ok((draws, boards)) => {
+                println!("Final score: {}", play_bingo(&draws[..], boards));
             }
         },
         Err(err) => {
