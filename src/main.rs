@@ -1,37 +1,40 @@
-mod digit;
-mod solver;
+mod matrix;
+
+use matrix::Matrix;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-fn merge_digits(digits: &[u8]) -> u16 {
-    digits
-        .iter()
-        .rev()
-        .copied()
-        .enumerate()
-        .map(|(i, d)| 10u16.pow(i as u32) * (d as u16))
-        .sum()
-}
-
 fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
-    let mut sum = 0u64;
-    for line_res in reader.lines() {
-        let line = line_res?;
-        let mut line_io = line.split('|');
-        let input = line_io.next().expect("Malformed line input").trim();
-        let output = line_io.next().expect("Malformed line output").trim();
-        let input_vec: Vec<&str> = input.split_whitespace().collect();
-        let key = solver::Key::try_from_input(&input_vec[..])?;
-        let number_vec = output
-            .split_whitespace()
-            .map(|digit| key.solve(digit))
+    const WIDTH: usize = 100;
+    let mut raw_map: Vec<u8> = Vec::new();
+    for line_result in reader.lines() {
+        let line = line_result?;
+        let mut row = line
+            .chars()
+            .map(|height_char| height_char.to_digit(10).map(|h| h as u8))
             .collect::<Option<Vec<u8>>>()
-            .expect("failed to process output digits");
-        sum += merge_digits(&number_vec[..]) as u64;
+            .expect("invalid digit encountered");
+        raw_map.append(&mut row);
     }
-    Ok(sum)
+    let map = Matrix::try_from_raw(&raw_map[..], WIDTH)?;
+    let mut risks = 0u64;
+    let map_height = map.get_height();
+    for h in 0..map_height {
+        for w in 0..WIDTH {
+            let cave_height = map[(w, h)];
+            let is_north_higher = 0 == h || cave_height < map[(w, h - 1)];
+            let is_south_higher = map_height == h + 1 || cave_height < map[(w, h + 1)];
+            let is_west_higher = 0 == w || cave_height < map[(w - 1, h)];
+            let is_east_higher = WIDTH == w + 1 || cave_height < map[(w + 1, h)];
+            if is_north_higher && is_south_higher && is_west_higher && is_east_higher {
+                risks += (cave_height as u64) + 1;
+            }
+        }
+    }
+
+    Ok(risks)
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -41,8 +44,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(output) => {
-                println!("output sum: {}", output);
+            Ok(risks) => {
+                println!("total risk: {}", risks);
             }
         },
         Err(err) => {
