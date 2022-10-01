@@ -27,6 +27,15 @@ impl ops::Index<(usize, usize)> for Matrix {
     }
 }
 
+impl ops::Index<&(usize, usize)> for Matrix {
+    type Output = u8;
+
+    fn index(&self, index: &(usize, usize)) -> &Self::Output {
+        self.get((index.0, index.1))
+            .unwrap_or_else(|| panic!("matrix index {:#?} out of bounds", index))
+    }
+}
+
 impl Matrix {
     pub fn try_from_raw(raw: &[u8], width: usize) -> Result<Self, InvalidMatrix> {
         if 0 != raw.len() % width {
@@ -39,12 +48,20 @@ impl Matrix {
         })
     }
 
+    pub fn get_width(&self) -> usize {
+        self.width
+    }
+
     pub fn get_height(&self) -> usize {
         if 0 == self.width {
             0
         } else {
             self.raw.len() / self.width
         }
+    }
+
+    pub fn get_dimensions(&self) -> (usize, usize) {
+        (self.width, self.get_height())
     }
 
     pub fn get(&self, index: (usize, usize)) -> Option<&u8> {

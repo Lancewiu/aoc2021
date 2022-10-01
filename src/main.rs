@@ -1,3 +1,4 @@
+mod basin;
 mod matrix;
 
 use matrix::Matrix;
@@ -6,7 +7,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
+fn process_lines(reader: impl BufRead) -> anyhow::Result<usize> {
     const WIDTH: usize = 100;
     let mut raw_map: Vec<u8> = Vec::new();
     for line_result in reader.lines() {
@@ -18,23 +19,10 @@ fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
             .expect("invalid digit encountered");
         raw_map.append(&mut row);
     }
-    let map = Matrix::try_from_raw(&raw_map[..], WIDTH)?;
-    let mut risks = 0u64;
-    let map_height = map.get_height();
-    for h in 0..map_height {
-        for w in 0..WIDTH {
-            let cave_height = map[(w, h)];
-            let is_north_higher = 0 == h || cave_height < map[(w, h - 1)];
-            let is_south_higher = map_height == h + 1 || cave_height < map[(w, h + 1)];
-            let is_west_higher = 0 == w || cave_height < map[(w - 1, h)];
-            let is_east_higher = WIDTH == w + 1 || cave_height < map[(w + 1, h)];
-            if is_north_higher && is_south_higher && is_west_higher && is_east_higher {
-                risks += (cave_height as u64) + 1;
-            }
-        }
-    }
-
-    Ok(risks)
+    let m = basin::Map::from_matrix(Matrix::try_from_raw(&raw_map[..], WIDTH)?);
+    let mut sizes = basin::find_sizes(&m);
+    sizes.sort_unstable_by(|a, b| b.partial_cmp(a).unwrap());
+    Ok(sizes[0] * sizes[1] * sizes[2])
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -44,8 +32,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(risks) => {
-                println!("total risk: {}", risks);
+            Ok(basin_mult) => {
+                println!("triple basin size: {}", basin_mult);
             }
         },
         Err(err) => {
