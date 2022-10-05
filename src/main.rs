@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-fn invert_bracket(bracket: char) -> Option<char> {
+const fn invert_bracket(bracket: char) -> Option<char> {
     match bracket {
         ')' => Some('('),
         '(' => Some(')'),
@@ -17,7 +16,17 @@ fn invert_bracket(bracket: char) -> Option<char> {
     }
 }
 
-fn complete_token(line: String) -> Option<Vec<char>> {
+const fn score_bracket(bracket: char) -> Option<u64> {
+    match bracket {
+        ')' => Some(1),
+        ']' => Some(2),
+        '}' => Some(3),
+        '>' => Some(4),
+        _ => None,
+    }
+}
+
+fn complete_token(line: &str) -> Option<Vec<char>> {
     let mut prev_open_brackets: Vec<char> = Vec::new();
     for token in line.chars() {
         match token {
@@ -41,11 +50,10 @@ fn complete_token(line: String) -> Option<Vec<char>> {
 }
 
 fn score_chunk(chunk: &[char]) -> Option<u64> {
-    let score_table: HashMap<char, u64> = HashMap::from([(')', 1), (']', 2), ('}', 3), ('>', 4)]);
     let mut score = 0u64;
-    for token in chunk.iter() {
+    for token in chunk.iter().copied() {
         score *= 5;
-        if let Some(score_value) = score_table.get(token) {
+        if let Some(score_value) = score_bracket(token) {
             score += score_value;
         } else {
             return None;
@@ -58,7 +66,7 @@ fn score_chunk(chunk: &[char]) -> Option<u64> {
 fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
     let mut scores: Vec<u64> = Vec::new();
     for line_result in reader.lines() {
-        if let Some(complete_chunk) = complete_token(line_result?) {
+        if let Some(complete_chunk) = complete_token(line_result?.as_str()) {
             scores.push(score_chunk(&complete_chunk[..]).expect("invalid chunk given"));
         }
     }
