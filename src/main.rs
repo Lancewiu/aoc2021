@@ -1,28 +1,51 @@
-mod basin;
-mod matrix;
-
-use matrix::Matrix;
-
+use std::collections::HashMap;
 use std::fs::File;
+use std::hint;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-fn process_lines(reader: impl BufRead) -> anyhow::Result<usize> {
-    const WIDTH: usize = 100;
-    let mut raw_map: Vec<u8> = Vec::new();
-    for line_result in reader.lines() {
-        let line = line_result?;
-        let mut row = line
-            .chars()
-            .map(|height_char| height_char.to_digit(10).map(|h| h as u8))
-            .collect::<Option<Vec<u8>>>()
-            .expect("invalid digit encountered");
-        raw_map.append(&mut row);
+fn verify_token(line: String) -> Option<char> {
+    let mut prev_open_brackets: Vec<char> = Vec::new();
+    for token in line.chars() {
+        match token {
+            '(' | '[' | '{' | '<' => {
+                prev_open_brackets.push(token);
+            }
+            ')' | ']' | '}' | '>' => {
+                let opposite = match token {
+                    ')' => '(',
+                    ']' => '[',
+                    '}' => '{',
+                    '>' => '<',
+                    _ => unsafe {
+                        hint::unreachable_unchecked();
+                    },
+                };
+                if Some(opposite) != prev_open_brackets.pop() {
+                    return Some(token);
+                }
+            }
+            _ => unreachable!(),
+        }
     }
-    let m = basin::Map::from_matrix(Matrix::try_from_raw(&raw_map[..], WIDTH)?);
-    let mut sizes = basin::find_sizes(&m);
-    sizes.sort_unstable_by(|a, b| b.partial_cmp(a).unwrap());
-    Ok(sizes[0] * sizes[1] * sizes[2])
+    None
+}
+
+fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
+    let score_table: HashMap<char, u64> =
+        HashMap::from([(')', 3), (']', 57), ('}', 1197), ('>', 25137)]);
+    let mut scoreboard = HashMap::from([(')', 0u64), (']', 0), ('}', 0), ('>', 0)]);
+    for line_result in reader.lines() {
+        if let Some(error_bracket) = verify_token(line_result?) {
+            scoreboard.entry(error_bracket).and_modify(|count| {
+                *count += 1;
+            });
+        }
+    }
+    Ok(scoreboard
+        .into_iter()
+        .map(|(bracket, count)| score_table[&bracket] * count)
+        .sum())
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -32,8 +55,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(basin_mult) => {
-                println!("triple basin size: {}", basin_mult);
+            Ok(error_score) => {
+                println!("error score total: {}", error_score);
             }
         },
         Err(err) => {
