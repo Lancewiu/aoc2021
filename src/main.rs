@@ -1,10 +1,23 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::hint;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-fn verify_token(line: String) -> Option<char> {
+fn invert_bracket(bracket: char) -> Option<char> {
+    match bracket {
+        ')' => Some('('),
+        '(' => Some(')'),
+        '[' => Some(']'),
+        ']' => Some('['),
+        '{' => Some('}'),
+        '}' => Some('{'),
+        '<' => Some('>'),
+        '>' => Some('<'),
+        _ => None,
+    }
+}
+
+fn complete_token(line: String) -> Option<Vec<char>> {
     let mut prev_open_brackets: Vec<char> = Vec::new();
     for token in line.chars() {
         match token {
@@ -12,40 +25,45 @@ fn verify_token(line: String) -> Option<char> {
                 prev_open_brackets.push(token);
             }
             ')' | ']' | '}' | '>' => {
-                let opposite = match token {
-                    ')' => '(',
-                    ']' => '[',
-                    '}' => '{',
-                    '>' => '<',
-                    _ => unsafe {
-                        hint::unreachable_unchecked();
-                    },
-                };
+                let opposite = unsafe { invert_bracket(token).unwrap_unchecked() };
                 if Some(opposite) != prev_open_brackets.pop() {
-                    return Some(token);
+                    return None;
                 }
             }
             _ => unreachable!(),
         }
     }
-    None
+    prev_open_brackets
+        .into_iter()
+        .rev()
+        .map(invert_bracket)
+        .collect::<Option<Vec<char>>>()
+}
+
+fn score_chunk(chunk: &[char]) -> Option<u64> {
+    let score_table: HashMap<char, u64> = HashMap::from([(')', 1), (']', 2), ('}', 3), ('>', 4)]);
+    let mut score = 0u64;
+    for token in chunk.iter() {
+        score *= 5;
+        if let Some(score_value) = score_table.get(token) {
+            score += score_value;
+        } else {
+            return None;
+        }
+    }
+
+    Some(score)
 }
 
 fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
-    let score_table: HashMap<char, u64> =
-        HashMap::from([(')', 3), (']', 57), ('}', 1197), ('>', 25137)]);
-    let mut scoreboard = HashMap::from([(')', 0u64), (']', 0), ('}', 0), ('>', 0)]);
+    let mut scores: Vec<u64> = Vec::new();
     for line_result in reader.lines() {
-        if let Some(error_bracket) = verify_token(line_result?) {
-            scoreboard.entry(error_bracket).and_modify(|count| {
-                *count += 1;
-            });
+        if let Some(complete_chunk) = complete_token(line_result?) {
+            scores.push(score_chunk(&complete_chunk[..]).expect("invalid chunk given"));
         }
     }
-    Ok(scoreboard
-        .into_iter()
-        .map(|(bracket, count)| score_table[&bracket] * count)
-        .sum())
+    scores.sort();
+    Ok(scores[scores.len() / 2])
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
