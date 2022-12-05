@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
 
+#[allow(dead_code)]
 fn debug_octopi(octopi: &[u32]) {
     for row in 0..10 {
         let start = row * 10;
@@ -27,9 +28,8 @@ fn empower_adjacent(octopi: &mut [u32], index: usize) {
     }
 }
 
-fn cascade_flashes(octopi: &mut [u32]) -> u64 {
+fn cascade_flashes(octopi: &mut [u32]) {
     let mut flashed: Vec<usize> = Vec::new();
-    let mut num_flashes: u64 = 0;
 
     loop {
         let new_flashes: Vec<usize> = octopi
@@ -44,7 +44,6 @@ fn cascade_flashes(octopi: &mut [u32]) -> u64 {
         if new_flashes.is_empty() {
             break;
         }
-        num_flashes += new_flashes.len() as u64;
         flashed.extend_from_slice(&new_flashes[..]);
         flashed.sort();
 
@@ -52,8 +51,6 @@ fn cascade_flashes(octopi: &mut [u32]) -> u64 {
             empower_adjacent(octopi, flash_index);
         }
     }
-
-    num_flashes
 }
 
 fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
@@ -68,13 +65,18 @@ fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
         octopi.append(&mut powers);
     }
 
-    let mut num_flashes: u64 = 0;
-    for _step in 0..100 {
+    let mut step_count = 0u64;
+    loop {
         octopi.iter_mut().for_each(|octopus| {
             *octopus += 1;
         });
 
-        num_flashes += cascade_flashes(&mut octopi[..]);
+        cascade_flashes(&mut octopi[..]);
+        step_count += 1;
+
+        if octopi.iter().all(|octopus| 10 <= *octopus) {
+            break;
+        }
 
         octopi
             .iter_mut()
@@ -83,8 +85,7 @@ fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
                 *flashed = 0;
             });
     }
-
-    Ok(num_flashes)
+    Ok(step_count)
 }
 fn main() {
     const INPUT_PATH: &str = "data/input.txt";
@@ -94,8 +95,8 @@ fn main() {
             Err(err) => {
                 eprintln!("Could not process file {}:\n  {}", INPUT_PATH, err);
             }
-            Ok(error_score) => {
-                println!("error score total: {}", error_score);
+            Ok(step_count) => {
+                println!("# steps: {}", step_count);
             }
         },
         Err(err) => {
