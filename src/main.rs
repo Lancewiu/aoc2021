@@ -18,14 +18,10 @@ fn empower_adjacent(octopi: &mut [u32], index: usize) {
         for col in -1..2 {
             let adj_x = x + col;
             let adj_y = y + row;
-            let adjacent_i = adj_x + adj_y * 10;
-            if index as i32 == adjacent_i
-                || !(0..100).contains(&adjacent_i)
-                || adj_x > 9
-                || adj_y > 9
-            {
+            if (0 == col && 0 == row) || !(0..10).contains(&adj_x) || !(0..10).contains(&adj_y) {
                 continue;
             }
+            let adjacent_i = adj_x + adj_y * 10;
             octopi[adjacent_i as usize] += 1;
         }
     }
@@ -73,9 +69,7 @@ fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
     }
 
     let mut num_flashes: u64 = 0;
-    for step in 0..10 {
-        eprintln!("Step {}", step);
-        debug_octopi(&octopi[..]);
+    for _step in 0..100 {
         octopi.iter_mut().for_each(|octopus| {
             *octopus += 1;
         });
@@ -93,8 +87,7 @@ fn process_lines(reader: impl BufRead) -> anyhow::Result<u64> {
     Ok(num_flashes)
 }
 fn main() {
-    //const INPUT_PATH: &str = "data/input.txt";
-    const INPUT_PATH: &str = "data/test_input.txt";
+    const INPUT_PATH: &str = "data/input.txt";
 
     match File::open(INPUT_PATH) {
         Ok(file) => match process_lines(BufReader::new(file)) {
